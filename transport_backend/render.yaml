@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: transport-backend
-    env: python
-    buildCommand: ""
-    startCommand: python app.py
-    envVars:
-      - key: MONGO_URI
-        value: mongodb+srv://KU_transport:<db_password>@cluster0.ruao8.mongodb.net/
