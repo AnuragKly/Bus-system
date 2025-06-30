@@ -1,97 +1,125 @@
+#!/usr/bin/env python3
+"""
+Simple test script to verify the GPS API endpoints work correctly
+"""
+
 import requests
 import json
-import asyncio
-import websockets
+from datetime import datetime
+import socket
 
-BASE_URL = "http://localhost:8000"
+def find_server_port():
+    """Find which port the server is running on"""
+    for port in range(8000, 8010):
+        try:
+            response = requests.get(f"http://localhost:{port}/health", timeout=1)
+            if response.status_code == 200:
+                return port
+        except requests.exceptions.RequestException:
+            continue
+    return 8000  # Default fallback
 
-def test_register():
-    """Test user registration"""
-    data = {
-        "email": "test@ku.edu.np",
-        "password": "testpassword123",
-        "role": "student"
-    }
-    response = requests.post(f"{BASE_URL}/auth/register", json=data)
-    print("Register Response:", response.json())
+# Try to detect the actual server port
+SERVER_PORT = find_server_port()
+BASE_URL = f"http://localhost:{SERVER_PORT}"
+
+print(f"🔍 Detected server on port {SERVER_PORT}")
+print(f"📡 Using base URL: {BASE_URL}")
+print()
+
+def test_root():
+    """Test root endpoint"""
+    print("Testing root endpoint...")
+    try:
+        response = requests.get(f"{BASE_URL}/")
+        print(f"✅ Root: {response.json()}")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+def test_health():
+    """Test health endpoint"""
+    print("\nTesting health endpoint...")
+    try:
+        response = requests.get(f"{BASE_URL}/health")
+        print(f"✅ Health: {response.json()}")
+    except Exception as e:
+        print(f"❌ Error: {e}")
 
 def test_gps_data():
-    """Test GPS data submission (from ESP32)"""
-    data = {
+    """Test GPS data submission"""
+    print("\nTesting GPS data submission...")
+    gps_payload = {
         "bus_id": "bus_001",
-        "latitude": 27.6181,  # KU location
-        "longitude": 85.5385,
-        "speed": 25.5
+        "latitude": 27.6176,  # Kathmandu coordinates
+        "longitude": 85.5392,
+        "speed": 25.5,
+        "timestamp": datetime.utcnow().isoformat()
     }
-    response = requests.post(f"{BASE_URL}/gps/data", json=data)
-    print("GPS Data Response:", response.json())
-
-def test_admin_register():
-    """Register admin user"""
-    data = {
-        "email": "driver@ku.edu.np",
-        "password": "driverpass123",
-        "role": "admin"
-    }
-    response = requests.post(f"{BASE_URL}/auth/register", json=data)
-    print("Admin Register Response:", response.json())
-
-def test_login_and_get_location():
-    """Test login and get bus location"""
-    # First login
-    login_data = {
-        "email": "test@ku.edu.np",
-        "password": "testpassword123"
-    }
-    response = requests.post(f"{BASE_URL}/auth/login", json=login_data)
     
-    if response.status_code != 200:
-        print("Login failed:", response.json())
-        return
-    
-    token = response.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    # Get bus location
-    location_response = requests.get(f"{BASE_URL}/gps/bus-location", headers=headers)
-    print("Bus Location:", location_response.json())
-    
-    # Test arrival estimation
-    eta_response = requests.get(
-        f"{BASE_URL}/gps/estimate-arrival?destination_lat=27.6299&destination_lon=85.5430",
-        headers=headers
-    )
-    print("ETA Response:", eta_response.json())
-
-async def test_websocket():
-    """Test WebSocket connection"""
-    uri = "ws://localhost:8000/ws/location"
     try:
-        async with websockets.connect(uri) as websocket:
-            print("WebSocket connected")
-            # Send keepalive
-            await websocket.send("ping")
-            
-            # Listen for messages
-            message = await websocket.recv()
-            print(f"Received: {message}")
+        response = requests.post(f"{BASE_URL}/gps/data", json=gps_payload)
+        if response.status_code == 200:
+            print(f"✅ GPS Data Submitted: {response.json()}")
+        else:
+            print(f"❌ Error submitting GPS data: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        print(f"❌ Error: {e}")
+
+def test_get_location():
+    """Test get current bus location"""
+    print("\nTesting get current bus location...")
+    try:
+        response = requests.get(f"{BASE_URL}/gps/bus-location?bus_id=bus_001")
+        if response.status_code == 200:
+            print(f"✅ Current Location: {response.json()}")
+        else:
+            print(f"❌ Error getting location: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+def test_estimate_arrival():
+    """Test arrival time estimation"""
+    print("\nTesting arrival time estimation...")
+    params = {
+        "destination_lat": 27.6200,
+        "destination_lon": 85.5400,
+        "bus_id": "bus_001"
+    }
+    
+    try:
+        response = requests.get(f"{BASE_URL}/gps/estimate-arrival", params=params)
+        if response.status_code == 200:
+            print(f"✅ Arrival Estimate: {response.json()}")
+        else:
+            print(f"❌ Error estimating arrival: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+def test_location_history():
+    """Test location history"""
+    print("\nTesting location history...")
+    try:
+        response = requests.get(f"{BASE_URL}/gps/location-history?bus_id=bus_001&limit=5")
+        if response.status_code == 200:
+            print(f"✅ Location History: {response.json()}")
+        else:
+            print(f"❌ Error getting history: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"❌ Error: {e}")
 
 if __name__ == "__main__":
-    print("Testing Transport Management System API")
+    print("🚌 GPS API Test Script")
+    print("=" * 50)
+    print("Make sure the server is running on http://localhost:8000")
     print("=" * 50)
     
-    # Test registration
-    test_register()
-    
-    # Test admin registration
-    test_admin_register()
-    
-    # Test GPS data
+    # Run all tests
+    test_root()
+    test_health()
     test_gps_data()
-
-    # Test login and get bus location
-    test_login_and_get_location()
-    # Test WebSocket (run this separately)
-    asyncio.run(test_websocket())
+    test_get_location()
+    test_estimate_arrival()
+    test_location_history()
+    
+    print("\n" + "=" * 50)
+    print("🎉 Test completed!")
