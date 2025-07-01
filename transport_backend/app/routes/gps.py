@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Optional
 from ..database import get_database
 from ..schemas.location import GPSData, LocationResponse, CurrentLocation
@@ -47,27 +47,16 @@ async def receive_gps_data(
         print(f"✅ Final Nepal timestamp: {gps_data.timestamp}")
     
     # Create location document with Nepal timestamps
-    # Store both the original timezone-aware datetime and a UTC equivalent for MongoDB consistency
-    nepal_time_for_storage = gps_data.timestamp
-    utc_time_for_mongo = nepal_time_for_storage.astimezone(timezone.utc) if nepal_time_for_storage.tzinfo else nepal_time_for_storage
-    
     location_doc = {
         "bus_id": gps_data.bus_id,
         "latitude": gps_data.latitude,
         "longitude": gps_data.longitude,
         "speed": gps_data.speed,
-        "timestamp": utc_time_for_mongo,  # Store as UTC for MongoDB consistency
-        "timestamp_nepal": nepal_time_for_storage.isoformat(),  # Store Nepal time as string
-        "timezone_offset": "+05:45",  # Explicitly store the timezone
-        "created_at": get_nepal_time().astimezone(timezone.utc),  # Store created_at as UTC
-        "created_at_nepal": get_nepal_time().isoformat()  # Store Nepal time as string
+        "timestamp": gps_data.timestamp,  # Now guaranteed to be Nepal time
+        "created_at": get_nepal_time()    # Current Nepal time
     }
     
-    print(f"💾 Storing in MongoDB:")
-    print(f"   timestamp (UTC): {location_doc['timestamp']}")
-    print(f"   timestamp_nepal: {location_doc['timestamp_nepal']}")
-    print(f"   created_at (UTC): {location_doc['created_at']}")
-    print(f"   created_at_nepal: {location_doc['created_at_nepal']}")
+    print(f"💾 Storing in MongoDB: timestamp={location_doc['timestamp']}, created_at={location_doc['created_at']}")
 
     # Insert into database
     result = await db.locations.insert_one(location_doc)
@@ -109,14 +98,7 @@ async def get_current_bus_location(
         )
     
     # Convert timestamp to Nepal time for user display
-    # Use the stored Nepal time if available, otherwise convert from UTC
-    if "timestamp_nepal" in location:
-        nepal_timestamp_str = location["timestamp_nepal"]
-        # Parse the stored Nepal time string
-        nepal_timestamp = parse_nepal_timestamp(nepal_timestamp_str)
-    else:
-        # Fallback: convert UTC timestamp to Nepal time
-        nepal_timestamp = utc_to_nepal_time(location["timestamp"]) if location["timestamp"].tzinfo else utc_to_nepal_time(location["timestamp"].replace(tzinfo=timezone.utc))
+    nepal_timestamp = utc_to_nepal_time(location["timestamp"]) if location["timestamp"].tzinfo else location["timestamp"]
     
     return CurrentLocation(
         bus_id=location["bus_id"],
@@ -156,10 +138,7 @@ async def estimate_arrival(
     eta_minutes = estimate_arrival_time(distance)
     
     # Convert timestamp to Nepal time
-    if "timestamp_nepal" in location:
-        nepal_timestamp = parse_nepal_timestamp(location["timestamp_nepal"])
-    else:
-        nepal_timestamp = utc_to_nepal_time(location["timestamp"]) if location["timestamp"].tzinfo else utc_to_nepal_time(location["timestamp"].replace(tzinfo=timezone.utc))
+    nepal_timestamp = utc_to_nepal_time(location["timestamp"]) if location["timestamp"].tzinfo else location["timestamp"]
     
     return {
         "current_location": {
@@ -188,16 +167,9 @@ async def get_location_history(
     
     locations = []
     async for location in cursor:
-        # Use stored Nepal time if available, otherwise convert from UTC
-        if "timestamp_nepal" in location:
-            nepal_timestamp = parse_nepal_timestamp(location["timestamp_nepal"])
-        else:
-            nepal_timestamp = utc_to_nepal_time(location["timestamp"]) if location["timestamp"].tzinfo else utc_to_nepal_time(location["timestamp"].replace(tzinfo=timezone.utc))
-        
-        if "created_at_nepal" in location:
-            nepal_created = parse_nepal_timestamp(location["created_at_nepal"])
-        else:
-            nepal_created = utc_to_nepal_time(location["created_at"]) if location["created_at"].tzinfo else utc_to_nepal_time(location["created_at"].replace(tzinfo=timezone.utc))
+        # Convert timestamps to Nepal time for user display
+        nepal_timestamp = utc_to_nepal_time(location["timestamp"]) if location["timestamp"].tzinfo else location["timestamp"]
+        nepal_created = utc_to_nepal_time(location["created_at"]) if location["created_at"].tzinfo else location["created_at"]
         
         locations.append(LocationResponse(
             id=str(location["_id"]),

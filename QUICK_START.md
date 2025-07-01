@@ -38,7 +38,7 @@ py -3 test_api.py
 - **ESP32 Code**: `esp32_gps_tracker.ino`
 - **Nepal Time**: `transport_backend/app/utils/nepal_time.py`
 - **Database**: MongoDB in Docker container
-- **Tests**: `transport_backend/test_nepal_fix.py`
+- **Tests**: `transport_backend/test_api.py`
 
 ---
 
