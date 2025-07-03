@@ -1,32 +1,24 @@
-name: bus_tracker_app
-description: "A new Flutter project."
-
-publish_to: 'none' 
-
+name: transport_management_app
+description: A Flutter app for tracking KU buses with FastAPI backend.
 
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.8.1
-
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.1.0
-  web_socket_channel: ^2.4.0
-  google_maps_flutter: ^2.5.0
-  
-  cupertino_icons: ^1.0.8
+  http: ^1.2.0                # Updated from 1.1.0
+  web_socket_channel: ^2.4.5  # Updated from 2.4.0
+  flutter_map: ^5.0.0        
+  latlong2: ^0.9.0            
+  provider: ^6.0.5            
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
-  
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0       # Updated from 3.0.0
 
 flutter:
   uses-material-design: true
-
-    
