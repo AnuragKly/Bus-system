@@ -1,0 +1,12 @@
+name: bus_tracking_app
+description: Bus tracking frontend using OpenStreetMap
+
+environment:
+  sdk: ">=2.17.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_map: ^8.2.1
+  latlong2: ^0.9.0
+  http: ^1.2.0
