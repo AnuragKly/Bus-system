@@ -28,10 +28,11 @@ class MapScreen extends StatelessWidget {
                 point: busLocation,
                 width: 40,
                 height: 40,
-                child: const Icon(
-                  Icons.directions_bus,
-                  color: Colors.red,
-                  size: 40,
+                child: Image.asset(
+                  'assets/bus.png', // your PNG file
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.contain,
                 ),
               ),
             ],
