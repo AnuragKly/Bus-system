@@ -18,7 +18,7 @@ class _MapScreenState extends State<MapScreen> {
   Timer? _timer;
 
   final String backendUrl =
-      'http://192.168.1.5:8000/gps/bus-location?bus_id=bus_001';
+      'http://10.0.2.2:8000/gps/bus-location?bus_id=bus_001';
 
   @override
   void initState() {
