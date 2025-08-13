@@ -10,44 +10,51 @@ class ETAScreen extends StatefulWidget {
 }
 
 class _ETAScreenState extends State<ETAScreen> {
-  List<Map<String, dynamic>> etaData = [];
   bool isLoading = true;
   bool hasError = false;
+  List<Map<String, dynamic>> etaData = [];
 
-  // Use same URL style as MapScreen (adjust for emulator/localhost)
-  final String backendUrl = 'http://10.0.2.2:8000/gps/bus-eta?bus_id=bus_001';
-  // If you're on a real device, use 'http://192.168.1.xx:8000/...'
-  // If running on desktop: 'http://127.0.0.1:8000/...'
+  // Fixed stops with their coordinates
+  final List<Map<String, dynamic>> stops = [
+    {"stop": "Main Gate", "lat": 27.6198, "lon": 85.5380},
+    {"stop": "Hostel", "lat": 27.6185, "lon": 85.5405},
+    {"stop": "KU Central", "lat": 27.6210, "lon": 85.5355},
+  ];
+
+  final String baseUrl = 'http://10.0.2.2:8000/gps/estimate-arrival';
 
   @override
   void initState() {
     super.initState();
-    fetchETAData();
+    fetchAllETAs();
   }
 
-  Future<void> fetchETAData() async {
+  Future<void> fetchAllETAs() async {
     try {
-      final response = await http.get(Uri.parse(backendUrl));
+      List<Map<String, dynamic>> results = [];
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      for (var stop in stops) {
+        final uri = Uri.parse(
+            '$baseUrl?destination_lat=${stop["lat"]}&destination_lon=${stop["lon"]}&bus_id=bus_001');
+        final response = await http.get(uri);
 
-        // Assuming backend returns something like:
-        // [{"stop": "Main Gate", "eta": "5 min"}, {"stop": "Hostel", "eta": "12 min"}]
-        setState(() {
-          etaData = List<Map<String, dynamic>>.from(data);
-          isLoading = false;
-          hasError = false;
-        });
-      } else {
-        debugPrint('Failed to fetch ETA: ${response.statusCode}');
-        setState(() {
-          hasError = true;
-          isLoading = false;
-        });
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          results.add({
+            "stop": stop["stop"],
+            "eta": "${data["estimated_arrival_minutes"]} min"
+          });
+        } else {
+          results.add({"stop": stop["stop"], "eta": "--"});
+        }
       }
+
+      setState(() {
+        etaData = results;
+        isLoading = false;
+        hasError = false;
+      });
     } catch (e) {
-      debugPrint('Error fetching ETA: $e');
       setState(() {
         hasError = true;
         isLoading = false;
@@ -63,16 +70,9 @@ class _ETAScreenState extends State<ETAScreen> {
           ? const Center(child: CircularProgressIndicator())
           : hasError
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text("Failed to load ETA data"),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: fetchETAData,
-                        child: const Text("Retry"),
-                      ),
-                    ],
+                  child: ElevatedButton(
+                    onPressed: fetchAllETAs,
+                    child: const Text("Retry"),
                   ),
                 )
               : ListView.builder(
@@ -80,8 +80,8 @@ class _ETAScreenState extends State<ETAScreen> {
                   itemBuilder: (context, index) {
                     return ListTile(
                       leading: const Icon(Icons.access_time),
-                      title: Text(etaData[index]["stop"] ?? "Unknown Stop"),
-                      trailing: Text(etaData[index]["eta"] ?? "--"),
+                      title: Text(etaData[index]["stop"]),
+                      trailing: Text(etaData[index]["eta"]),
                     );
                   },
                 ),
