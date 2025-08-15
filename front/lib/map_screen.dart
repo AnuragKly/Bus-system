@@ -14,9 +14,12 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  LatLng busLocation = LatLng(27.6193, 85.5362); // Default location
+  // Default starting location
+  LatLng busLocation = LatLng(27.6193, 85.5362);
   Timer? _timer;
+  final MapController _mapController = MapController();
 
+  // Your backend URL
   final String backendUrl =
       'http://10.0.2.2:8000/gps/bus-location?bus_id=bus_001';
 
@@ -24,7 +27,7 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     fetchBusLocation();
-    // Refresh every 10 seconds for live update
+    // Refresh every 10 seconds
     _timer = Timer.periodic(const Duration(seconds: 10), (timer) {
       fetchBusLocation();
     });
@@ -37,9 +40,14 @@ class _MapScreenState extends State<MapScreen> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
+        final newLocation = LatLng(data['latitude'], data['longitude']);
+
         setState(() {
-          busLocation = LatLng(data['latitude'], data['longitude']);
+          busLocation = newLocation;
         });
+
+        // Move the map smoothly to new location
+        _mapController.move(newLocation, _mapController.camera.zoom);
       } else {
         debugPrint('Failed to fetch bus location: ${response.statusCode}');
       }
@@ -59,6 +67,7 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text("Live Bus Map")),
       body: FlutterMap(
+        mapController: _mapController,
         options: MapOptions(
           initialCenter: busLocation,
           initialZoom: 15,
