@@ -1,10 +1,8 @@
-import 'dart:async';
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:http/http.dart' as http;
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -14,51 +12,38 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  // Default starting location
-  LatLng busLocation = LatLng(27.6193, 85.5362);
-  Timer? _timer;
-  final MapController _mapController = MapController();
+  LatLng busLocation = LatLng(27.6193, 85.5362); // default fallback
+  late WebSocketChannel channel;
 
-  // Your backend URL
-  final String backendUrl =
-      'http://10.0.2.2:8000/gps/bus-location?bus_id=bus_001';
+  final String backendUrl = 'ws://10.0.2.2:8000/ws/location';
+  // Change host if running on real device (use your LAN IP)
 
   @override
   void initState() {
     super.initState();
-    fetchBusLocation();
-    // Refresh every 10 seconds
-    _timer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      fetchBusLocation();
-    });
-  }
+    channel = WebSocketChannel.connect(Uri.parse(backendUrl));
 
-  Future<void> fetchBusLocation() async {
-    try {
-      final response = await http.get(Uri.parse(backendUrl));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        final newLocation = LatLng(data['latitude'], data['longitude']);
-
-        setState(() {
-          busLocation = newLocation;
-        });
-
-        // Move the map smoothly to new location
-        _mapController.move(newLocation, _mapController.camera.zoom);
-      } else {
-        debugPrint('Failed to fetch bus location: ${response.statusCode}');
+    channel.stream.listen((message) {
+      try {
+        final decoded = jsonDecode(message);
+        if (decoded["type"] == "location_update" && decoded["data"] != null) {
+          final lat = decoded["data"]["latitude"];
+          final lon = decoded["data"]["longitude"];
+          if (lat != null && lon != null) {
+            setState(() {
+              busLocation = LatLng(lat, lon);
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Error parsing WebSocket message: $e');
       }
-    } catch (e) {
-      debugPrint('Error fetching bus location: $e');
-    }
+    });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    channel.sink.close();
     super.dispose();
   }
 
@@ -67,7 +52,6 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text("Live Bus Map")),
       body: FlutterMap(
-        mapController: _mapController,
         options: MapOptions(
           initialCenter: busLocation,
           initialZoom: 15,
