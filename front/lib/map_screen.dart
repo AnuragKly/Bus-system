@@ -22,6 +22,8 @@ class _MapScreenState extends State<MapScreen> {
   StreamSubscription? _webSocketSubscription;
   bool _isConnected = false;
   Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 5;
 
   @override
   void initState() {
@@ -36,11 +38,13 @@ class _MapScreenState extends State<MapScreen> {
 
       _channel = WebSocketChannel.connect(Uri.parse(_backendUrl));
       _isConnected = true;
+      _reconnectAttempts = 0;
 
       _webSocketSubscription = _channel!.stream.listen(
         _handleWebSocketMessage,
         onDone: _onWebSocketDone,
         onError: _onWebSocketError,
+        cancelOnError: true,
       );
     } catch (e) {
       debugPrint('WebSocket connection error: $e');
@@ -93,8 +97,16 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _scheduleReconnect() {
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      debugPrint('Max reconnection attempts reached');
+      return;
+    }
+
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(_reconnectDelay, _connectWebSocket);
+    _reconnectTimer = Timer(_reconnectDelay, () {
+      _reconnectAttempts++;
+      _connectWebSocket();
+    });
   }
 
   void _disposeWebSocket() {
@@ -106,8 +118,14 @@ class _MapScreenState extends State<MapScreen> {
 
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+  }
 
-    _isConnected = false;
+  void _manualReconnect() {
+    setState(() {
+      _isConnected = false;
+      _reconnectAttempts = 0;
+    });
+    _connectWebSocket();
   }
 
   @override
@@ -132,24 +150,23 @@ class _MapScreenState extends State<MapScreen> {
       body: FlutterMap(
         options: MapOptions(
           initialCenter: _busLocation,
-          initialZoom: 15,
-          maxZoom: 18,
+          initialZoom: 15.0,
         ),
         children: [
           TileLayer(
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.example.front',
+            userAgentPackageName: 'com.example.bus_tracker',
           ),
           MarkerLayer(
             markers: [
               Marker(
                 point: _busLocation,
-                width: 50,
-                height: 50,
-                child: const Icon(
+                width: 50.0,
+                height: 50.0,
+                child: Icon(
                   Icons.directions_bus,
-                  size: 40,
-                  color: Colors.blue,
+                  size: 40.0,
+                  color: Colors.blue[700],
                 ),
               ),
             ],
@@ -157,10 +174,9 @@ class _MapScreenState extends State<MapScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _isConnected ? null : _connectWebSocket,
-        child: _isConnected
-            ? const Icon(Icons.refresh)
-            : const Icon(Icons.refresh),
+        onPressed: _manualReconnect,
+        tooltip: 'Reconnect',
+        child: const Icon(Icons.refresh),
       ),
     );
   }

@@ -11,36 +11,39 @@ class ETAScreen extends StatefulWidget {
 }
 
 class _ETAScreenState extends State<ETAScreen> {
-  bool isLoading = true;
-  bool hasError = false;
-  List<Map<String, dynamic>> etaData = [];
+  bool _isLoading = true;
+  bool _hasError = false;
+  List<Map<String, dynamic>> _etaData = [];
   Timer? _refreshTimer;
-  String selectedBusId = 'bus_001';
+  String _selectedBusId = 'bus_001';
+  DateTime? _lastUpdated;
 
   // Available buses
-  final List<Map<String, String>> buses = [
+  final List<Map<String, String>> _buses = [
     {"id": "bus_001", "name": "Campus Shuttle"},
     {"id": "bus_002", "name": "KU to Kathmandu"},
     {"id": "bus_003", "name": "KU to Dhulikhel"},
   ];
 
   // Fixed stops with their coordinates
-  final List<Map<String, dynamic>> stops = [
+  final List<Map<String, dynamic>> _stops = [
     {"stop": "Main Gate", "lat": 27.6198, "lon": 85.5380},
     {"stop": "Hostel", "lat": 27.6185, "lon": 85.5405},
     {"stop": "KU Central", "lat": 27.6210, "lon": 85.5355},
   ];
 
-  final String baseUrl = 'http://10.0.2.2:8000/gps/estimate-arrival';
+  final String _baseUrl = 'http://10.0.2.2:8000/gps/estimate-arrival';
 
   @override
   void initState() {
     super.initState();
-    fetchAllETAs();
+    _fetchAllETAs();
 
     // Set up auto-refresh every 30 seconds
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      fetchAllETAs();
+      if (mounted) {
+        _fetchAllETAs();
+      }
     });
   }
 
@@ -50,55 +53,81 @@ class _ETAScreenState extends State<ETAScreen> {
     super.dispose();
   }
 
-  Future<void> fetchAllETAs() async {
+  Future<void> _fetchAllETAs() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      List<Map<String, dynamic>> results = [];
+      final results = await Future.wait(
+        _stops.map((stop) => _fetchETAForStop(stop)),
+      );
 
-      for (var stop in stops) {
-        final uri = Uri.parse(
-            '$baseUrl?destination_lat=${stop["lat"]}&destination_lon=${stop["lon"]}&bus_id=$selectedBusId');
-
-        final response = await http.get(uri);
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          results.add({
-            "stop": stop["stop"],
-            "eta": data["estimated_arrival_minutes"],
-            "distance": data["distance_km"],
-            "traffic_factor": data["traffic_factor"],
-            "accuracy": data["accuracy"],
-            "route_info": data["route_info"],
-            "current_location": data["current_location"],
-            "base_eta": data["base_eta_minutes"],
-            "traffic_adjusted_eta": data["traffic_adjusted_eta_minutes"],
-          });
-        } else {
-          results.add({
-            "stop": stop["stop"],
-            "eta": "--",
-            "distance": 0.0,
-            "traffic_factor": 1.0,
-            "accuracy": "unknown",
-            "error": true
-          });
-        }
+      if (mounted) {
+        setState(() {
+          _etaData = results;
+          _isLoading = false;
+          _hasError = false;
+          _lastUpdated = DateTime.now();
+        });
       }
-
-      setState(() {
-        etaData = results;
-        isLoading = false;
-        hasError = false;
-      });
     } catch (e) {
-      setState(() {
-        hasError = true;
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  Color getAccuracyColor(String accuracy) {
+  Future<Map<String, dynamic>> _fetchETAForStop(
+      Map<String, dynamic> stop) async {
+    try {
+      final uri = Uri.parse(
+          '$_baseUrl?destination_lat=${stop["lat"]}&destination_lon=${stop["lon"]}&bus_id=$_selectedBusId');
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          "stop": stop["stop"],
+          "eta": data["estimated_arrival_minutes"],
+          "distance": data["distance_km"],
+          "traffic_factor": data["traffic_factor"],
+          "accuracy": data["accuracy"],
+          "route_info": data["route_info"],
+          "current_location": data["current_location"],
+          "base_eta": data["base_eta_minutes"],
+          "traffic_adjusted_eta": data["traffic_adjusted_eta_minutes"],
+          "error": false,
+        };
+      } else {
+        return {
+          "stop": stop["stop"],
+          "eta": "--",
+          "distance": 0.0,
+          "traffic_factor": 1.0,
+          "accuracy": "unknown",
+          "error": true,
+        };
+      }
+    } catch (e) {
+      return {
+        "stop": stop["stop"],
+        "eta": "--",
+        "distance": 0.0,
+        "traffic_factor": 1.0,
+        "accuracy": "unknown",
+        "error": true,
+      };
+    }
+  }
+
+  Color _getAccuracyColor(String accuracy) {
     switch (accuracy) {
       case 'very_high':
         return Colors.green;
@@ -111,7 +140,7 @@ class _ETAScreenState extends State<ETAScreen> {
     }
   }
 
-  IconData getAccuracyIcon(String accuracy) {
+  IconData _getAccuracyIcon(String accuracy) {
     switch (accuracy) {
       case 'very_high':
         return Icons.gps_fixed;
@@ -124,21 +153,21 @@ class _ETAScreenState extends State<ETAScreen> {
     }
   }
 
-  String getTrafficStatus(double trafficFactor) {
+  String _getTrafficStatus(double trafficFactor) {
     if (trafficFactor > 1.3) return "Heavy Traffic";
     if (trafficFactor > 1.1) return "Light Traffic";
     if (trafficFactor < 0.9) return "Fast Route";
     return "Normal Traffic";
   }
 
-  Color getTrafficColor(double trafficFactor) {
+  Color _getTrafficColor(double trafficFactor) {
     if (trafficFactor > 1.3) return Colors.red;
     if (trafficFactor > 1.1) return Colors.orange;
     if (trafficFactor < 0.9) return Colors.green;
     return Colors.blue;
   }
 
-  Widget buildETACard(Map<String, dynamic> eta) {
+  Widget _buildETACard(Map<String, dynamic> eta) {
     final bool hasError = eta["error"] == true;
     final String etaText = hasError ? "--" : "${eta["eta"]} min";
     final double distance = eta["distance"] ?? 0.0;
@@ -148,7 +177,7 @@ class _ETAScreenState extends State<ETAScreen> {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 4,
+      elevation: 3,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -157,11 +186,7 @@ class _ETAScreenState extends State<ETAScreen> {
             // Main ETA Row
             Row(
               children: [
-                Icon(
-                  Icons.location_on,
-                  color: Colors.blue,
-                  size: 24,
-                ),
+                const Icon(Icons.location_on, color: Colors.blue, size: 24),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -207,13 +232,13 @@ class _ETAScreenState extends State<ETAScreen> {
                   Icon(
                     Icons.traffic,
                     size: 16,
-                    color: getTrafficColor(trafficFactor),
+                    color: _getTrafficColor(trafficFactor),
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    getTrafficStatus(trafficFactor),
+                    _getTrafficStatus(trafficFactor),
                     style: TextStyle(
-                      color: getTrafficColor(trafficFactor),
+                      color: _getTrafficColor(trafficFactor),
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -227,15 +252,15 @@ class _ETAScreenState extends State<ETAScreen> {
               Row(
                 children: [
                   Icon(
-                    getAccuracyIcon(accuracy),
+                    _getAccuracyIcon(accuracy),
                     size: 16,
-                    color: getAccuracyColor(accuracy),
+                    color: _getAccuracyColor(accuracy),
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    accuracy.toUpperCase(),
+                    accuracy.replaceAll('_', ' ').toUpperCase(),
                     style: TextStyle(
-                      color: getAccuracyColor(accuracy),
+                      color: _getAccuracyColor(accuracy),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -264,7 +289,7 @@ class _ETAScreenState extends State<ETAScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: getTrafficColor(trafficFactor).withOpacity(0.1),
+                    color: _getTrafficColor(trafficFactor).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -272,7 +297,7 @@ class _ETAScreenState extends State<ETAScreen> {
                       Icon(
                         Icons.info_outline,
                         size: 16,
-                        color: getTrafficColor(trafficFactor),
+                        color: _getTrafficColor(trafficFactor),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -281,7 +306,7 @@ class _ETAScreenState extends State<ETAScreen> {
                           "With traffic: ${eta["traffic_adjusted_eta"] ?? "--"} min",
                           style: TextStyle(
                             fontSize: 12,
-                            color: getTrafficColor(trafficFactor),
+                            color: _getTrafficColor(trafficFactor),
                           ),
                         ),
                       ),
@@ -306,7 +331,7 @@ class _ETAScreenState extends State<ETAScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: isLoading ? null : fetchAllETAs,
+            onPressed: _isLoading ? null : _fetchAllETAs,
           ),
         ],
       ),
@@ -332,10 +357,10 @@ class _ETAScreenState extends State<ETAScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButton<String>(
-                        value: selectedBusId,
+                        value: _selectedBusId,
                         isExpanded: true,
                         underline: Container(),
-                        items: buses.map((bus) {
+                        items: _buses.map((bus) {
                           return DropdownMenuItem<String>(
                             value: bus["id"],
                             child: Text(bus["name"]!),
@@ -344,10 +369,9 @@ class _ETAScreenState extends State<ETAScreen> {
                         onChanged: (String? newValue) {
                           if (newValue != null) {
                             setState(() {
-                              selectedBusId = newValue;
-                              isLoading = true;
+                              _selectedBusId = newValue;
                             });
-                            fetchAllETAs();
+                            _fetchAllETAs();
                           }
                         },
                       ),
@@ -360,7 +384,7 @@ class _ETAScreenState extends State<ETAScreen> {
 
           // ETA List
           Expanded(
-            child: isLoading
+            child: _isLoading
                 ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -371,7 +395,7 @@ class _ETAScreenState extends State<ETAScreen> {
                       ],
                     ),
                   )
-                : hasError
+                : _hasError
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -393,27 +417,26 @@ class _ETAScreenState extends State<ETAScreen> {
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton.icon(
-                              onPressed: fetchAllETAs,
+                              onPressed: _fetchAllETAs,
                               icon: const Icon(Icons.refresh),
                               label: const Text("Retry"),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                              ),
                             ),
                           ],
                         ),
                       )
-                    : ListView.builder(
-                        itemCount: etaData.length,
-                        itemBuilder: (context, index) {
-                          return buildETACard(etaData[index]);
-                        },
+                    : RefreshIndicator(
+                        onRefresh: _fetchAllETAs,
+                        child: ListView.builder(
+                          itemCount: _etaData.length,
+                          itemBuilder: (context, index) {
+                            return _buildETACard(_etaData[index]);
+                          },
+                        ),
                       ),
           ),
 
           // Last Updated Info
-          if (!isLoading && !hasError)
+          if (!_isLoading && !_hasError)
             Container(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -422,16 +445,18 @@ class _ETAScreenState extends State<ETAScreen> {
                   const Icon(Icons.access_time, size: 16, color: Colors.grey),
                   const SizedBox(width: 8),
                   Text(
-                    "Last updated: ${DateTime.now().toString().substring(11, 19)}",
+                    _lastUpdated != null
+                        ? "Last updated: ${_lastUpdated!.toString().substring(11, 19)}"
+                        : "Not updated yet",
                     style: const TextStyle(
                       color: Colors.grey,
                       fontSize: 12,
                     ),
                   ),
                   const SizedBox(width: 16),
-                  Text(
+                  const Text(
                     "Auto-refresh: 30s",
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.grey,
                       fontSize: 12,
                     ),
