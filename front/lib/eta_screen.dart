@@ -33,7 +33,8 @@ class _ETAScreenState extends State<ETAScreen> {
     {"stop": "KU Central", "lat": 27.6210, "lon": 85.5355},
   ];
 
-  final String _baseUrl = 'http://10.0.2.2:8000/gps/estimate-arrival';
+  // Update to route-eta endpoint
+  final String _baseUrl = 'http://10.0.2.2:8000/gps/route-eta';
 
   @override
   void initState() {
@@ -91,13 +92,13 @@ class _ETAScreenState extends State<ETAScreen> {
         return {
           "stop": stop["stop"],
           "eta": data["estimated_arrival_minutes"],
+          "base_eta": data["base_eta_minutes"],
+          "traffic_adjusted_eta": data["traffic_adjusted_eta_minutes"],
           "distance": data["distance_km"],
           "traffic_factor": data["traffic_factor"],
           "accuracy": data["accuracy"],
           "route_info": data["route_info"],
           "current_location": data["current_location"],
-          "base_eta": data["base_eta_minutes"],
-          "traffic_adjusted_eta": data["traffic_adjusted_eta_minutes"],
           "error": false,
         };
       }
@@ -128,7 +129,8 @@ class _ETAScreenState extends State<ETAScreen> {
 
   Widget _buildETACard(Map<String, dynamic> eta) {
     final bool hasError = eta["error"] == true;
-    final String etaText = hasError ? "--" : "${eta["eta"]} min";
+    final String etaText =
+        hasError ? "--" : "${eta["eta"]?.toStringAsFixed(1)} min";
     final double distance = eta["distance"] ?? 0.0;
     final double trafficFactor = eta["traffic_factor"] ?? 1.0;
 
@@ -144,6 +146,12 @@ class _ETAScreenState extends State<ETAScreen> {
                   Text("Distance: ${distance.toStringAsFixed(1)} km"),
                   Text("Traffic: ${_getTrafficStatus(trafficFactor)}",
                       style: TextStyle(color: _getTrafficColor(trafficFactor))),
+                  if (eta["accuracy"] != null)
+                    Text("Accuracy: ${eta["accuracy"]}"),
+                  if (eta["base_eta"] != null &&
+                      eta["traffic_adjusted_eta"] != null)
+                    Text(
+                        "Base ETA: ${eta["base_eta"].toStringAsFixed(1)} min, Adjusted: ${eta["traffic_adjusted_eta"].toStringAsFixed(1)} min"),
                 ],
               )
             : const Text("Unable to fetch ETA"),
