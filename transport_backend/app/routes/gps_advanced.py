@@ -17,7 +17,8 @@ except ImportError:
     print("✅ Using simple tracking (no NumPy dependency)")
     TRACKING_TYPE = "simple"
 
-from .websocket import broadcast_location_updatet APIRouter, Depends, HTTPException, status, Query
+from .websocket import broadcast_location_updatet 
+APIRouter, Depends, HTTPException, status, Query
 from datetime import datetime
 from typing import List, Optional
 from ..database import get_database
