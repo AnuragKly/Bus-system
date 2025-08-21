@@ -21,11 +21,28 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 def estimate_arrival_time(distance_km: float, avg_speed_kmh: float = 25.0) -> int:
     """
-    Estimate arrival time in minutes based on distance and average speed
+    Estimate arrival time in minutes based on distance, average speed, and traffic factor.
     Default average speed for Kathmandu traffic: 25 km/h
+    traffic_factor: >1.0 means slower due to congestion (see IEEE 2019, https://ieeexplore.ieee.org/document/8713992)
+    """
+    def _with_traffic(distance_km: float, avg_speed_kmh: float, traffic_factor: float) -> int:
+        if distance_km <= 0:
+            return 0
+        # Adjust speed by traffic factor
+        effective_speed = avg_speed_kmh / traffic_factor if traffic_factor > 0 else avg_speed_kmh
+        time_hours = distance_km / effective_speed
+        return int(time_hours * 60)
+
+    # For backward compatibility, traffic_factor defaults to 1.0
+    return _with_traffic(distance_km, avg_speed_kmh, 1.0)
+
+def estimate_arrival_time_with_traffic(distance_km: float, avg_speed_kmh: float = 25.0, traffic_factor: float = 1.0) -> int:
+    """
+    Estimate arrival time in minutes based on distance, average speed, and traffic congestion factor.
+    traffic_factor: >1.0 means slower due to congestion (see IEEE 2019, https://ieeexplore.ieee.org/document/8713992)
     """
     if distance_km <= 0:
         return 0
-    
-    time_hours = distance_km / avg_speed_kmh
-    return int(time_hours * 60)  # Convert to minutes
+    effective_speed = avg_speed_kmh / traffic_factor if traffic_factor > 0 else avg_speed_kmh
+    time_hours = distance_km / effective_speed
+    return int(time_hours * 60)

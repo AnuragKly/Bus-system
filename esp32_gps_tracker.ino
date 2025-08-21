@@ -19,13 +19,13 @@ Required Libraries:
 #include <ArduinoJson.h>
 #include <TinyGPS++.h>
 
-// WiFi credentials - UPDATE THESE
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+// WiFi credentials - UPDATE THESE WITH YOUR ACTUAL WIFI
+const char* ssid = "YOUR_WIFI_SSID";           // Replace with your WiFi name
+const char* password = "YOUR_WIFI_PASSWORD";   // Replace with your WiFi password
 
-// API server configuration - UPDATE THIS IP
-const char* serverURL = "http://192.168.1.38:8000";  // Your server IP from network_info.py
-const char* busID = "bus_001";  // Unique bus identifier
+// API server configuration - CORRECT IP FROM DIAGNOSTICS
+const char* serverURL = "http://192.168.1.68:8000";  // Updated server IP address
+const char* busID = "ESP32_BUS_001";  // Unique bus identifier
 
 // GPS configuration - Using your working pin setup
 #define RXD2 16    // GPS TX → ESP32 GPIO16

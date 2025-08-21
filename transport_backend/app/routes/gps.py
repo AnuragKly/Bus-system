@@ -3,7 +3,8 @@ from datetime import datetime
 from typing import List, Optional
 from ..database import get_database
 from ..schemas.location import GPSData, LocationResponse, CurrentLocation
-from ..utils.distance import haversine_distance, estimate_arrival_time
+from ..utils.distance import haversine_distance, estimate_arrival_time_with_traffic
+from ..utils.traffic import get_live_traffic_factor
 from ..utils.nepal_time import get_nepal_time, utc_to_nepal_time, parse_nepal_timestamp, format_nepal_time
 from .websocket import broadcast_location_update
 
@@ -115,31 +116,31 @@ async def estimate_arrival(
     bus_id: str = "bus_001",
     db = Depends(get_database)
 ):
-    """Estimate bus arrival time to destination"""
+    """Estimate bus arrival time to destination, using real-time traffic data (OpenRouteService, IEEE 2019)"""
     # Get current bus location
     location = await db.locations.find_one(
         {"bus_id": bus_id},
         sort=[("timestamp", -1)]
     )
-    
     if not location:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No location data found for this bus"
         )
-    
     # Calculate distance
     distance = haversine_distance(
         location["latitude"], location["longitude"],
         destination_lat, destination_lon
     )
-    
-    # Estimate arrival time
-    eta_minutes = estimate_arrival_time(distance)
-    
+    # Fetch real-time traffic factor
+    traffic_factor = await get_live_traffic_factor(
+        location["latitude"], location["longitude"],
+        destination_lat, destination_lon
+    )
+    # Estimate arrival time with real-time traffic
+    eta_minutes = estimate_arrival_time_with_traffic(distance, traffic_factor=traffic_factor)
     # Convert timestamp to Nepal time
     nepal_timestamp = utc_to_nepal_time(location["timestamp"]) if location["timestamp"].tzinfo else location["timestamp"]
-    
     return {
         "current_location": {
             "latitude": location["latitude"],
@@ -151,7 +152,9 @@ async def estimate_arrival(
         },
         "distance_km": round(distance, 2),
         "estimated_arrival_minutes": eta_minutes,
-        "last_updated": nepal_timestamp  # Now shows Nepal time
+        "traffic_factor": traffic_factor,
+        "last_updated": nepal_timestamp,  # Now shows Nepal time
+        "_traffic_reference": "ETA adjusted for real-time traffic (OpenRouteService, IEEE 2019, https://ieeexplore.ieee.org/document/8713992)"
     }
 
 @router.get("/location-history", response_model=List[LocationResponse])

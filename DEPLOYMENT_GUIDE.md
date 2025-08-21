@@ -6,7 +6,7 @@ When you reload this repository, follow these steps in order:
 
 ### **Step 1: Start MongoDB Database**
 ```bash
-cd "c:\VS code\Bus Repository\Bus-system\transport_backend"
+cd "c:\Users\taman\OneDrive\Desktop\Bus-system\transport_backend"
 docker compose up -d
 ```
 

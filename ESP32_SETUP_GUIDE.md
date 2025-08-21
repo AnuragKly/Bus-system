@@ -12,7 +12,7 @@ This ESP32 will track bus location and send GPS data to your FastAPI backend ser
 
 ## 📡 Network Configuration
 **Your API Server URLs:**
-- Network URL: `http://192.168.1.38:8000` ← **Use this for ESP32**
+- Network URL: `http://192.168.1.68:8000` ← **Use this for ESP32** (CORRECTED)
 - Local URL: `http://localhost:8000` ← **Use this for testing**
 
 ## 🔌 Hardware Connections
@@ -137,7 +137,7 @@ ESP32 GPS → WiFi → Your Computer → MongoDB
 ## 📞 Quick Reference Commands
 ```powershell
 # Start server
-cd "c:\VS code\Bus Repository\Bus-system\transport_backend"
+cd "c:\Users\taman\OneDrive\Desktop\Bus-system\transport_backend"
 py start.py
 
 # Test API
