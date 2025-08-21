@@ -1,3 +1,4 @@
+// eta_screen.dart
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -25,7 +26,7 @@ class _ETAScreenState extends State<ETAScreen> {
     {"id": "bus_003", "name": "KU to Dhulikhel"},
   ];
 
-  // Fixed stops with their coordinates
+  // Fixed stops
   final List<Map<String, dynamic>> _stops = [
     {"stop": "Main Gate", "lat": 27.6198, "lon": 85.5380},
     {"stop": "Hostel", "lat": 27.6185, "lon": 85.5405},
@@ -39,11 +40,8 @@ class _ETAScreenState extends State<ETAScreen> {
     super.initState();
     _fetchAllETAs();
 
-    // Set up auto-refresh every 30 seconds
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted) {
-        _fetchAllETAs();
-      }
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) _fetchAllETAs();
     });
   }
 
@@ -55,10 +53,7 @@ class _ETAScreenState extends State<ETAScreen> {
 
   Future<void> _fetchAllETAs() async {
     if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final results = await Future.wait(
@@ -73,7 +68,7 @@ class _ETAScreenState extends State<ETAScreen> {
           _lastUpdated = DateTime.now();
         });
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() {
           _hasError = true;
@@ -105,66 +100,30 @@ class _ETAScreenState extends State<ETAScreen> {
           "traffic_adjusted_eta": data["traffic_adjusted_eta_minutes"],
           "error": false,
         };
-      } else {
-        return {
-          "stop": stop["stop"],
-          "eta": "--",
-          "distance": 0.0,
-          "traffic_factor": 1.0,
-          "accuracy": "unknown",
-          "error": true,
-        };
       }
-    } catch (e) {
-      return {
-        "stop": stop["stop"],
-        "eta": "--",
-        "distance": 0.0,
-        "traffic_factor": 1.0,
-        "accuracy": "unknown",
-        "error": true,
-      };
-    }
+    } catch (_) {}
+    return {
+      "stop": stop["stop"],
+      "eta": "--",
+      "distance": 0.0,
+      "traffic_factor": 1.0,
+      "accuracy": "unknown",
+      "error": true,
+    };
   }
 
-  Color _getAccuracyColor(String accuracy) {
-    switch (accuracy) {
-      case 'very_high':
-        return Colors.green;
-      case 'high':
-        return Colors.lightGreen;
-      case 'medium':
-        return Colors.orange;
-      default:
-        return Colors.red;
-    }
-  }
-
-  IconData _getAccuracyIcon(String accuracy) {
-    switch (accuracy) {
-      case 'very_high':
-        return Icons.gps_fixed;
-      case 'high':
-        return Icons.gps_not_fixed;
-      case 'medium':
-        return Icons.location_on;
-      default:
-        return Icons.location_off;
-    }
-  }
-
-  String _getTrafficStatus(double trafficFactor) {
-    if (trafficFactor > 1.3) return "Heavy Traffic";
-    if (trafficFactor > 1.1) return "Light Traffic";
-    if (trafficFactor < 0.9) return "Fast Route";
-    return "Normal Traffic";
-  }
-
-  Color _getTrafficColor(double trafficFactor) {
-    if (trafficFactor > 1.3) return Colors.red;
-    if (trafficFactor > 1.1) return Colors.orange;
-    if (trafficFactor < 0.9) return Colors.green;
+  Color _getTrafficColor(double factor) {
+    if (factor > 1.3) return Colors.red;
+    if (factor > 1.1) return Colors.orange;
+    if (factor < 0.9) return Colors.green;
     return Colors.blue;
+  }
+
+  String _getTrafficStatus(double factor) {
+    if (factor > 1.3) return "Heavy Traffic";
+    if (factor > 1.1) return "Light Traffic";
+    if (factor < 0.9) return "Fast Route";
+    return "Normal Traffic";
   }
 
   Widget _buildETACard(Map<String, dynamic> eta) {
@@ -172,150 +131,26 @@ class _ETAScreenState extends State<ETAScreen> {
     final String etaText = hasError ? "--" : "${eta["eta"]} min";
     final double distance = eta["distance"] ?? 0.0;
     final double trafficFactor = eta["traffic_factor"] ?? 1.0;
-    final String accuracy = eta["accuracy"] ?? "unknown";
-    final Map<String, dynamic>? routeInfo = eta["route_info"];
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Main ETA Row
-            Row(
-              children: [
-                const Icon(Icons.location_on, color: Colors.blue, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    eta["stop"],
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: hasError ? Colors.grey : Colors.blue,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    etaText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            if (!hasError) ...[
-              const SizedBox(height: 12),
-
-              // Distance and Traffic Info
-              Row(
+      child: ListTile(
+        title: Text(eta["stop"],
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: !hasError
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.straighten, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    "${distance.toStringAsFixed(1)} km",
-                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                  ),
-                  const SizedBox(width: 16),
-                  Icon(
-                    Icons.traffic,
-                    size: 16,
-                    color: _getTrafficColor(trafficFactor),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _getTrafficStatus(trafficFactor),
-                    style: TextStyle(
-                      color: _getTrafficColor(trafficFactor),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  Text("Distance: ${distance.toStringAsFixed(1)} km"),
+                  Text("Traffic: ${_getTrafficStatus(trafficFactor)}",
+                      style: TextStyle(color: _getTrafficColor(trafficFactor))),
                 ],
-              ),
-
-              const SizedBox(height: 8),
-
-              // Accuracy and Route Info
-              Row(
-                children: [
-                  Icon(
-                    _getAccuracyIcon(accuracy),
-                    size: 16,
-                    color: _getAccuracyColor(accuracy),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    accuracy.replaceAll('_', ' ').toUpperCase(),
-                    style: TextStyle(
-                      color: _getAccuracyColor(accuracy),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  if (routeInfo != null && routeInfo["route_name"] != null) ...[
-                    Icon(Icons.route, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        routeInfo["route_name"],
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-
-              // Traffic Factor Details
-              if (trafficFactor != 1.0) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _getTrafficColor(trafficFactor).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        size: 16,
-                        color: _getTrafficColor(trafficFactor),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "Base time: ${eta["base_eta"] ?? "--"} min • "
-                          "With traffic: ${eta["traffic_adjusted_eta"] ?? "--"} min",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _getTrafficColor(trafficFactor),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ],
+              )
+            : const Text("Unable to fetch ETA"),
+        trailing: Chip(
+          label: Text(etaText),
+          backgroundColor: hasError ? Colors.grey : Colors.blue,
+          labelStyle: const TextStyle(color: Colors.white),
         ),
       ),
     );
@@ -324,146 +159,47 @@ class _ETAScreenState extends State<ETAScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Bus ETA"),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _isLoading ? null : _fetchAllETAs,
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text("Bus ETA")),
       body: Column(
         children: [
-          // Bus Selection
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Icon(Icons.directions_bus, color: Colors.blue),
-                    const SizedBox(width: 12),
-                    const Text(
-                      "Select Bus:",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButton<String>(
-                        value: _selectedBusId,
-                        isExpanded: true,
-                        underline: Container(),
-                        items: _buses.map((bus) {
-                          return DropdownMenuItem<String>(
-                            value: bus["id"],
-                            child: Text(bus["name"]!),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          if (newValue != null) {
-                            setState(() {
-                              _selectedBusId = newValue;
-                            });
-                            _fetchAllETAs();
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          // Dropdown
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: DropdownButton<String>(
+              value: _selectedBusId,
+              isExpanded: true,
+              items: _buses.map((bus) {
+                return DropdownMenuItem(
+                    value: bus["id"], child: Text(bus["name"]!));
+              }).toList(),
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => _selectedBusId = val);
+                  _fetchAllETAs();
+                }
+              },
             ),
           ),
-
-          // ETA List
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text("Calculating ETAs..."),
-                      ],
-                    ),
-                  )
+                ? const Center(child: CircularProgressIndicator())
                 : _hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.error_outline,
-                              size: 64,
-                              color: Colors.red,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              "Unable to fetch ETA data",
-                              style: TextStyle(fontSize: 18),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              "Please check your connection and try again",
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: _fetchAllETAs,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text("Retry"),
-                            ),
-                          ],
-                        ),
-                      )
+                    ? const Center(child: Text("Error fetching ETA"))
                     : RefreshIndicator(
                         onRefresh: _fetchAllETAs,
                         child: ListView.builder(
                           itemCount: _etaData.length,
-                          itemBuilder: (context, index) {
-                            return _buildETACard(_etaData[index]);
-                          },
+                          itemBuilder: (context, i) =>
+                              _buildETACard(_etaData[i]),
                         ),
                       ),
           ),
-
-          // Last Updated Info
-          if (!_isLoading && !_hasError)
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.access_time, size: 16, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Text(
-                    _lastUpdated != null
-                        ? "Last updated: ${_lastUpdated!.toString().substring(11, 19)}"
-                        : "Not updated yet",
-                    style: const TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Text(
-                    "Auto-refresh: 30s",
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          if (_lastUpdated != null)
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                  "Last updated: ${_lastUpdated!.toLocal().toString().substring(11, 19)}"),
+            )
         ],
       ),
     );
