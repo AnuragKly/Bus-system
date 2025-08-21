@@ -18,6 +18,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   cupertino_icons: ^1.0.2
+  icon: ^2.2.1
 
 flutter:
   assets:

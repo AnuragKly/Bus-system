@@ -144,7 +144,7 @@ class _MapScreenState extends State<MapScreen> {
             _isConnected ? Icons.wifi : Icons.wifi_off,
             color: _isConnected ? Colors.green : Colors.red,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 16)
         ],
       ),
       body: FlutterMap(
@@ -166,7 +166,7 @@ class _MapScreenState extends State<MapScreen> {
                 child: Icon(
                   Icons.directions_bus,
                   size: 40.0,
-                  color: Colors.blue[700],
+                  color: Colors.blue.shade700,
                 ),
               ),
             ],
