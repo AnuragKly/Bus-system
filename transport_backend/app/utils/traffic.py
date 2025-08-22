@@ -26,4 +26,34 @@ async def get_live_traffic_factor(start_lat, start_lon, end_lat, end_lon):
             traffic_factor = duration_real / normal_time if normal_time > 0 else 1.0
             return max(traffic_factor, 0.5)  # Clamp to avoid zero/negative
         else:
-            return 1.0  # fallback if API fails
+            # Zone-based TCF: high (Kathmandu), medium (Bhaktapur), low (Banepa/Dhulikhel)
+            from datetime import datetime
+            hour = datetime.now().hour
+            # Define longitude boundaries (approximate)
+            JADIBUTI_LON = 85.355
+            SANGA_LON = 85.465
+            # Use start_lon to determine zone (could also interpolate route for more accuracy)
+            if start_lon < JADIBUTI_LON:
+                # Kathmandu Valley (high congestion)
+                if 7 <= hour <= 10 or 16 <= hour <= 20:
+                    return 1.7  # Peak
+                elif 10 < hour < 16:
+                    return 1.3  # Off-peak
+                else:
+                    return 1.1  # Night/early morning
+            elif JADIBUTI_LON <= start_lon < SANGA_LON:
+                # Bhaktapur to Sanga (medium congestion)
+                if 7 <= hour <= 10 or 16 <= hour <= 20:
+                    return 1.4  # Peak (reduced)
+                elif 10 < hour < 16:
+                    return 1.15  # Off-peak (reduced)
+                else:
+                    return 1.05  # Night/early morning (reduced)
+            else:
+                # East of Sanga: Banepa, Dhulikhel (low congestion)
+                if 7 <= hour <= 10 or 16 <= hour <= 20:
+                    return 1.15  # Peak (minimal congestion)
+                elif 10 < hour < 16:
+                    return 1.05  # Off-peak (minimal congestion)
+                else:
+                    return 1.0  # Night/early morning (minimal congestion)
