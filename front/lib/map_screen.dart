@@ -16,7 +16,7 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   static const LatLng _defaultLocation = LatLng(27.6193, 85.5362);
   static const String _backendUrl =
-      'ws://10.0.2.2:8000/ws/location'; // ✅ updated to ngrok link
+      'ws://a053d04320d7.ngrok-free.app/location'; // ✅ updated to ngrok link
 
   LatLng _busLocation = _defaultLocation;
   WebSocketChannel? _channel;

@@ -34,7 +34,7 @@ class _ETAScreenState extends State<ETAScreen> {
   ];
 
   // ✅ updated to ngrok URL instead of 10.0.2.2
-  final String _baseUrl = 'http://10.0.2.2:8000/gps/route-eta';
+  final String _baseUrl = 'https://a053d04320d7.ngrok-free.app/';
 
   @override
   void initState() {
