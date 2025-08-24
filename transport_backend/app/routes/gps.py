@@ -39,7 +39,7 @@ async def receive_gps_data(
             print("🔄 Converting UTC to Nepal time")
             if isinstance(gps_data.timestamp, str):
                 # Handle string timestamps
-                timestamp_str = gps_data.timestamp.replace('Z', '+00:00') if 'Z' in gps_data.timestamp else gps_data.timestamp
+                timestamp_str = str(gps_data.timestamp).replace('Z', '+00:00') if 'Z' in str(gps_data.timestamp) else str(gps_data.timestamp)
                 utc_dt = datetime.fromisoformat(timestamp_str)
             else:
                 utc_dt = gps_data.timestamp
@@ -109,11 +109,112 @@ async def get_current_bus_location(
         last_updated=nepal_timestamp  # Now shows Nepal time
     )
 
+@router.get("/estimate-arrival-enhanced")
+async def estimate_arrival_enhanced(
+    destination_lat: float,
+    destination_lon: float,
+    bus_id: str = "ESP32_BUS_001",
+    db = Depends(get_database)
+):
+    """Enhanced ETA calculation with speed and confidence metrics"""
+    # Get current bus location
+    current_location = await db.locations.find_one(
+        {"bus_id": bus_id},
+        sort=[("timestamp", -1)]
+    )
+    if not current_location:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No location data found for this bus"
+        )
+    
+    # Get recent GPS data for speed analysis (last 5 points)
+    historical_cursor = db.locations.find(
+        {"bus_id": bus_id}
+    ).sort("timestamp", -1).limit(5)
+    
+    recent_locations = []
+    async for location in historical_cursor:
+        recent_locations.append(location)
+    
+    # Calculate average speed from recent data
+    total_speed = 0
+    speed_count = 0
+    for location in recent_locations:
+        if location["speed"] > 0:  # Only count moving speeds
+            total_speed += location["speed"]
+            speed_count += 1
+    
+    average_speed = total_speed / speed_count if speed_count > 0 else 25.0  # Default 25 km/h
+    current_speed = current_location["speed"]
+    
+    # Calculate effective speed (weighted average of current and historical)
+    if current_speed > 0:
+        effective_speed = (current_speed * 0.6) + (average_speed * 0.4)
+    else:
+        effective_speed = average_speed
+    
+    # Ensure minimum realistic speed
+    effective_speed = max(effective_speed, 15.0)
+    
+    # Calculate distance
+    distance = haversine_distance(
+        current_location["latitude"], current_location["longitude"],
+        destination_lat, destination_lon
+    )
+    
+    # Get traffic factor
+    traffic_factor = await get_live_traffic_factor(
+        current_location["latitude"], current_location["longitude"],
+        destination_lat, destination_lon
+    )
+    
+    # Calculate ETA
+    eta_minutes = (distance / effective_speed) * 60 * traffic_factor
+    
+    # Calculate confidence based on data quality
+    confidence = 85.0  # Base confidence
+    
+    # Adjust confidence based on data availability
+    if len(recent_locations) >= 3:
+        confidence += 5.0  # More data points
+    if speed_count >= 2:
+        confidence += 5.0  # Moving data available
+    if traffic_factor <= 1.2:
+        confidence += 3.0  # Light traffic
+    
+    # Cap confidence at realistic maximum
+    confidence = min(confidence, 92.0)
+    
+    # Convert timestamp to Nepal time
+    nepal_timestamp = utc_to_nepal_time(current_location["timestamp"]) if current_location["timestamp"].tzinfo else current_location["timestamp"]
+    
+    return {
+        "current_location": {
+            "latitude": current_location["latitude"],
+            "longitude": current_location["longitude"],
+            "speed": current_location["speed"]
+        },
+        "destination": {
+            "latitude": destination_lat,
+            "longitude": destination_lon
+        },
+        "eta_minutes": round(eta_minutes, 1),
+        "confidence_percent": round(confidence, 1),
+        "effective_speed_kmh": round(effective_speed, 1),
+        "distance_km": round(distance, 2),
+        "traffic_factor": traffic_factor,
+        "data_points_used": len(recent_locations),
+        "moving_data_points": speed_count,
+        "last_updated": nepal_timestamp,
+        "algorithm": "Enhanced ETA with Speed Analysis"
+    }
+
 @router.get("/estimate-arrival")
 async def estimate_arrival(
     destination_lat: float,
     destination_lon: float,
-    bus_id: str = "bus_001",
+    bus_id: str = "ESP32_BUS_001",
     db = Depends(get_database)
 ):
     """Estimate bus arrival time to destination, using real-time traffic data (OpenRouteService, IEEE 2019)"""
@@ -127,6 +228,36 @@ async def estimate_arrival(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No location data found for this bus"
         )
+    
+    # Get recent GPS data for enhanced calculations
+    recent_cursor = db.locations.find(
+        {"bus_id": bus_id}
+    ).sort("timestamp", -1).limit(5)
+    
+    recent_locations = []
+    async for loc in recent_cursor:
+        recent_locations.append(loc)
+    
+    # Calculate average speed from recent data
+    total_speed = 0
+    speed_count = 0
+    for loc in recent_locations:
+        if loc["speed"] > 0:  # Only count moving speeds
+            total_speed += loc["speed"]
+            speed_count += 1
+    
+    average_speed = total_speed / speed_count if speed_count > 0 else 25.0  # Default 25 km/h
+    current_speed = location["speed"]
+    
+    # Calculate effective speed (weighted average of current and historical)
+    if current_speed > 0:
+        effective_speed = (current_speed * 0.6) + (average_speed * 0.4)
+    else:
+        effective_speed = average_speed
+    
+    # Ensure minimum realistic speed
+    effective_speed = max(effective_speed, 15.0)
+    
     # Calculate distance
     distance = haversine_distance(
         location["latitude"], location["longitude"],
@@ -139,6 +270,21 @@ async def estimate_arrival(
     )
     # Estimate arrival time with real-time traffic
     eta_minutes = estimate_arrival_time_with_traffic(distance, traffic_factor=traffic_factor)
+    
+    # Calculate confidence based on data quality
+    confidence = 85.0  # Base confidence
+    
+    # Adjust confidence based on data availability
+    if len(recent_locations) >= 3:
+        confidence += 5.0  # More data points
+    if speed_count >= 2:
+        confidence += 5.0  # Moving data available
+    if traffic_factor <= 1.2:
+        confidence += 3.0  # Light traffic
+    
+    # Cap confidence at realistic maximum
+    confidence = min(confidence, 92.0)
+    
     # Convert timestamp to Nepal time
     nepal_timestamp = utc_to_nepal_time(location["timestamp"]) if location["timestamp"].tzinfo else location["timestamp"]
     return {
@@ -152,7 +298,11 @@ async def estimate_arrival(
         },
         "distance_km": round(distance, 2),
         "estimated_arrival_minutes": eta_minutes,
+        "effective_speed_kmh": round(effective_speed, 1),
+        "confidence_percent": round(confidence, 1),
         "traffic_factor": traffic_factor,
+        "data_points_used": len(recent_locations),
+        "moving_data_points": speed_count,
         "last_updated": nepal_timestamp,  # Now shows Nepal time
         "_traffic_reference": "ETA adjusted for real-time traffic (OpenRouteService, IEEE 2019, https://ieeexplore.ieee.org/document/8713992)"
     }

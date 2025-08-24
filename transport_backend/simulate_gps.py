@@ -7,35 +7,20 @@ from datetime import datetime
 API_URL = "http://localhost:8000/gps/data"
 BUS_ID = "ESP32_BUS_001"
 
-# Route: Current location near Kathmandu to Koteshwor Traffic Police Station
-# This simulates a realistic bus route with multiple stops
+# Route: Exact Araniko Highway coordinates (5 minutes)
+# Using user-provided precise GPS coordinates
 route_points = [
-    # Starting point (current location)
-    {"lat": 27.7234335, "lon": 85.2725605, "speed": 0},  # Starting point
+    # Starting point - Exact coordinates provided by user
+    {"lat": 27.67562, "lon": 85.35136, "speed": 0, "location": "Starting Point - Araniko Highway"},
     
-    # Route to Koteshwor via Ring Road
-    {"lat": 27.7220, "lon": 85.2740, "speed": 15},  # Moving towards ring road
-    {"lat": 27.7200, "lon": 85.2760, "speed": 25},  # Ring road entry
-    {"lat": 27.7180, "lon": 85.2800, "speed": 30},  # Ring road
-    {"lat": 27.7160, "lon": 85.2850, "speed": 35},  # Ring road
-    {"lat": 27.7140, "lon": 85.2900, "speed": 40},  # Ring road - faster section
+    # First waypoint - User provided coordinate
+    {"lat": 27.67533, "lon": 85.35665, "speed": 25, "location": "First Waypoint - Araniko Highway"},
     
-    # Traffic area - slower speeds
-    {"lat": 27.7120, "lon": 85.2950, "speed": 20},  # Traffic congestion
-    {"lat": 27.7100, "lon": 85.3000, "speed": 15},  # Heavy traffic
-    {"lat": 27.7080, "lon": 85.3050, "speed": 25},  # Traffic clearing
+    # Second waypoint - User provided coordinate  
+    {"lat": 27.67497, "lon": 85.35973, "speed": 30, "location": "Second Waypoint - Araniko Highway"},
     
-    # Approaching Koteshwor
-    {"lat": 27.7060, "lon": 85.3100, "speed": 30},  # Normal flow
-    {"lat": 27.7040, "lon": 85.3150, "speed": 35},  # Good speed
-    {"lat": 27.7020, "lon": 85.3200, "speed": 30},  # Approaching destination
-    
-    # Near Koteshwor Traffic Police Station
-    {"lat": 27.7000, "lon": 85.3250, "speed": 20},  # Slowing down
-    {"lat": 27.6980, "lon": 85.3280, "speed": 15},  # Near destination
-    {"lat": 27.6960, "lon": 85.3300, "speed": 10},  # Very close
-    {"lat": 27.6950, "lon": 85.3320, "speed": 5},   # Arriving
-    {"lat": 27.6945, "lon": 85.3330, "speed": 0},   # Koteshwor Traffic Police Station
+    # Final destination - User provided coordinate
+    {"lat": 27.67436, "lon": 85.36421, "speed": 0, "location": "Final Destination - Araniko Highway"}
 ]
 
 def send_gps_data(latitude, longitude, speed):
@@ -60,7 +45,7 @@ def send_gps_data(latitude, longitude, speed):
         print(f"❌ Network error: {e}")
         return False
 
-def interpolate_points(start_point, end_point, num_steps=5):
+def interpolate_points(start_point, end_point, num_steps=3):
     """Create intermediate points between two GPS coordinates"""
     intermediate_points = []
     
@@ -76,27 +61,37 @@ def interpolate_points(start_point, end_point, num_steps=5):
     return intermediate_points
 
 def simulate_gps_journey():
-    """Simulate a complete GPS journey with realistic timing"""
-    print("🚌 Starting GPS simulation from current location to Koteshwor Traffic Police Station")
-    print(f"📍 Route has {len(route_points)} main waypoints")
-    print("⏰ Simulation will run for approximately 30 minutes with updates every 10 seconds")
+    """Simulate 5-minute GPS journey using exact user coordinates"""
+    print("🚌 ESP32 GPS Simulation: Exact Araniko Highway Route")
+    print("📍 Route: User-provided precise coordinates")
+    print("⏰ Duration: Exactly 5 minutes")
+    print("🔄 ESP32 Mode: 5-second intervals")
     print("-" * 70)
     
+    # Create route with interpolated points for 5-minute journey
+    # 5 minutes = 300 seconds / 5 seconds per update = 60 total points
     all_points = []
     
-    # Create detailed route with interpolated points
     for i in range(len(route_points) - 1):
         all_points.append(route_points[i])
-        # Add intermediate points for smoother movement
-        intermediate = interpolate_points(route_points[i], route_points[i + 1], 3)
+        # Add more intermediate points between each waypoint for 5-minute duration
+        intermediate = interpolate_points(route_points[i], route_points[i + 1], 12)
         all_points.extend(intermediate)
     
     # Add final destination
     all_points.append(route_points[-1])
     
-    print(f"📊 Total simulation points: {len(all_points)}")
-    print(f"⏱️  Update interval: 10 seconds")
-    print(f"🕐 Total duration: {len(all_points) * 10 / 60:.1f} minutes")
+    # Ensure we have exactly 60 points for 5 minutes (adjust if needed)
+    target_points = 60
+    if len(all_points) != target_points:
+        print(f"📊 Adjusting points: {len(all_points)} → {target_points}")
+        # Simple resampling to get exactly 60 points
+        step = len(all_points) / target_points
+        all_points = [all_points[int(i * step)] for i in range(target_points)]
+    
+    print(f"📊 Total GPS points: {len(all_points)}")
+    print(f"⏱️  ESP32 interval: 5 seconds")
+    print(f"🕐 Total duration: {len(all_points) * 5 / 60:.1f} minutes")
     print("-" * 70)
     
     # Send GPS data for each point
@@ -109,18 +104,19 @@ def simulate_gps_journey():
         success = send_gps_data(point["lat"], point["lon"], point["speed"])
         
         if not success:
-            print("⚠️  Retrying in 5 seconds...")
-            time.sleep(5)
+            print("⚠️  Retrying in 3 seconds...")
+            time.sleep(3)
             send_gps_data(point["lat"], point["lon"], point["speed"])
         
-        # Wait before sending next point (10 seconds for realistic simulation)
-        if i < len(all_points) - 1:  # Don't wait after the last point
-            time.sleep(10)
+        # ESP32 timing: Wait 5 seconds before next GPS reading
+        if i < len(all_points) - 1:
+            time.sleep(5)
     
     print("\n" + "=" * 70)
     print("🎉 GPS simulation completed!")
-    print(f"📍 Final location: Koteshwor Traffic Police Station")
-    print(f"⏰ Total simulation time: {len(all_points) * 10 / 60:.1f} minutes")
+    print("📍 Final location: User-specified destination")
+    print(f"⏰ Total simulation time: {len(all_points) * 5 / 60:.1f} minutes")
+    print("🛣️  Route: Exact coordinates from user")
     print("=" * 70)
 
 if __name__ == "__main__":
